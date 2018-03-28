@@ -95,7 +95,7 @@ public:
         for (std::string img : imgs) {
         	std::vector<int> expected = loadDat(img.c_str());
         	std::string path;
-			Mat imgMat = imread(path.append(IMG_PATH).append(img).append(".jpg"));
+        	cv::Mat imgMat = cv::imread(path.append(IMG_PATH).append(img).append(".jpg"));
 			std::string output;
 			Detector detector = Detector(imgMat);
 			if (!detector.detectPuzzle()){
@@ -107,24 +107,24 @@ public:
 				Puzzle puzzle(detector.extractedDigits.data());
 				if(!puzzle.solve()){
 
-					Mat drawn = detector.drawDigits(puzzle.getResolvedDigits());
+					cv::Mat drawn = detector.drawDigits(puzzle.getResolvedDigits());
 
 //					imwrite(output.append("../../resource/output/drawn/").append(img).append(".jpg"), drawn);
 
 				} else {
 
-					Mat drawn = detector.drawDigits(puzzle.getResolvedDigits());
+					cv::Mat drawn = detector.drawDigits(puzzle.getResolvedDigits());
 
-//					imwrite(output.append("../../resource/output/drawn/Grid_Found_Not_Solved_").append(img).append(".jpg"), drawn);
+//					cv::imwrite(output.append("../../resource/output/drawn/Grid_Found_Not_Solved_").append(img).append(".jpg"), drawn);
 
 				}
 
 
 			} else {
-//				imwrite(output.append("../../resource/output/drawn/Grid_Not_Found_").append(img).append(".jpg"), imgMat);
+//				cv::imwrite(output.append("../../resource/output/drawn/Grid_Not_Found_").append(img).append(".jpg"), imgMat);
 
 				noGrid++;
-//				cout << "grid not found for " << img << "\n";
+//				std::cout << "grid not found for " << img << "\n";
 			}
 
         }
@@ -138,13 +138,13 @@ public:
 
 	static void evalOne(const char* name) {
 		// call cvtColor once to avoid incorrect timing
-		Mat a = Mat(Size(5, 5), CV_8UC3);
-    	cvtColor(a, a, COLOR_BGR2GRAY);
+		cv::Mat a = cv::Mat(cv::Size(5, 5), CV_8UC3);
+		cv::cvtColor(a, a, cv::COLOR_BGR2GRAY);
 
 		Timer timer("eval one", true);
 		std::vector<int> expected = loadDat(name);
 		std::string path;
-        Mat imgMat = imread(path.append(IMG_PATH).append(name).append(".jpg"));
+		cv::Mat imgMat = cv::imread(path.append(IMG_PATH).append(name).append(".jpg"));
         timer.timeit("read file");
 		Detector detector = Detector(imgMat);
 		timer.timeit("initialize detector");
@@ -156,10 +156,10 @@ public:
 			timer.timeit("initialize solver");
 			if(!puzzle.solve()){
 				timer.timeit("solving");
-				Mat drawn = detector.drawDigits(puzzle.getResolvedDigits());
+				cv::Mat drawn = detector.drawDigits(puzzle.getResolvedDigits());
 				timer.timeit("draw digits");
 				std::string output;
-//				imwrite(output.append("../../resource/").append(name).append("Drawn.jpg"), drawn);
+//				cv::imwrite(output.append("../../resource/").append(name).append("Drawn.jpg"), drawn);
 			}
 			std::cout << "Total: " << eval[0] <<
         			", found: " << eval[1] <<

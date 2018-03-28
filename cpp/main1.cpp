@@ -19,7 +19,7 @@ int main(int, char**)
 	timer.timeit("init");
 //	 Train::trainSvm();
 
-	Mat image = cv::imread("../../../Workspace/resource/images/all/image1050.jpg");
+	cv::Mat image = cv::imread("../../../Workspace/resource/images/all/image1050.jpg");
 	if (image.empty())                      // Check for invalid input
 	{
 		std::cout << "Could not open or find the image" << std::endl;

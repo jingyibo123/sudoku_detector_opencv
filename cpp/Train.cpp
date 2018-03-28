@@ -13,8 +13,6 @@
 #include "Detector.h"
 
 
-using namespace ml;
-
 #define DIGITS_PATH "../../resource/28x28/"
 
 #define NB_IMG 140
@@ -31,9 +29,9 @@ public:
 
 	static void trainSvm() {
 
-        Ptr<ml::SVM> newSvm = SVM::create();
-        newSvm->setKernel(SVM::LINEAR);
-        newSvm->setType(SVM::C_SVC);
+		cv::Ptr<cv::ml::SVM> newSvm = cv::ml::SVM::create();
+        newSvm->setKernel(cv::ml::SVM::LINEAR);
+        newSvm->setType(cv::ml::SVM::C_SVC);
         newSvm->setC(2.67);
         newSvm->setGamma(5.383);
 
@@ -57,9 +55,9 @@ public:
 			for (std::string fileName : fileNames){
 
 				std::string im;
-				Mat img = imread(im.append(DIGITS_PATH).append(std::to_string(i)).append("/").append(fileName));
+				cv::Mat img = cv::imread(im.append(DIGITS_PATH).append(std::to_string(i)).append("/").append(fileName));
 
-				cvtColor(img, img, COLOR_BGR2GRAY);
+				cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
 				Detector::deskew(img, img);
 				std::vector<float> hogData(NB_AREA * NB_BIN);
 				Detector::hog(img, hogData);
@@ -70,19 +68,19 @@ public:
 			}
 		}
 
-		Mat testData = Mat(SZ * NB_IMG, NB_AREA * NB_BIN, CV_32F, samples.data());
-		Mat respData = Mat(SZ * NB_IMG, 1, CV_32S, resp.data());
+		cv::Mat testData = cv::Mat(SZ * NB_IMG, NB_AREA * NB_BIN, CV_32F, samples.data());
+		cv::Mat respData = cv::Mat(SZ * NB_IMG, 1, CV_32S, resp.data());
 
-		newSvm->train(testData , ml::ROW_SAMPLE , respData);
+		newSvm->train(testData , cv::ml::ROW_SAMPLE , respData);
 		newSvm->save(SVM_PATH);
 
 	}
 
 	static void trainAutoSvm() {
 
-	        Ptr<ml::SVM> newSvm = SVM::create();
-	        newSvm->setKernel(SVM::LINEAR);
-	        newSvm->setType(SVM::C_SVC);
+			cv::Ptr<cv::ml::SVM> newSvm = cv::ml::SVM::create();
+	        newSvm->setKernel(cv::ml::SVM::LINEAR);
+	        newSvm->setType(cv::ml::SVM::C_SVC);
 	        newSvm->setC(2.67);
 	        newSvm->setGamma(5.383);
 
@@ -106,9 +104,9 @@ public:
 				for (std::string fileName : fileNames){
 
 					std::string im;
-					Mat img = imread(im.append(DIGITS_PATH).append(std::to_string(i)).append("/").append(fileName));
+					cv::Mat img = cv::imread(im.append(DIGITS_PATH).append(std::to_string(i)).append("/").append(fileName));
 
-					cvtColor(img, img, COLOR_BGR2GRAY);
+					cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
 					// Optional
 					// Detector::deskew(img, img);
 
@@ -121,10 +119,10 @@ public:
 				}
 			}
 
-			Mat testData = Mat(SZ * NB_IMG, NB_AREA * NB_BIN, CV_32F, samples.data());
-			Mat respData = Mat(SZ * NB_IMG, 1, CV_32S, resp.data());
+			cv::Mat testData = cv::Mat(SZ * NB_IMG, NB_AREA * NB_BIN, CV_32F, samples.data());
+			cv::Mat respData = cv::Mat(SZ * NB_IMG, 1, CV_32S, resp.data());
 
-			newSvm->train(testData , ml::ROW_SAMPLE , respData);
+			newSvm->train(testData , cv::ml::ROW_SAMPLE , respData);
 			newSvm->save(SVM_PATH);
 
 		}

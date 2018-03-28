@@ -10,16 +10,14 @@
 #include "Detector.h"
 #include "Timer.cpp"
 
-using namespace cv;
 
-using namespace ml;
 
 bool Detector::initiated = false;
-std::vector<Mat> Detector::digitImgs;
-Ptr<SVM> Detector::svm;
+std::vector<cv::Mat> Detector::digitImgs;
+cv::Ptr<cv::ml::SVM> Detector::svm;
 
 
-Detector::Detector(Mat img) {
+Detector::Detector(cv::Mat img) {
 	this->img = img;
 	this->timerDebug = true;
 }
@@ -33,12 +31,12 @@ void Detector::init(const char* svmPath, const char* digitsMaskPath){
 		return;
 
 	// load svm machine
-	svm = Algorithm::load<SVM>(svmPath);
+	svm = cv::Algorithm::load<cv::ml::SVM>(svmPath);
 	// load digit masks
-	digitImgs = std::vector<Mat>(SZ);
-	Mat digitMasks = imread(digitsMaskPath, CV_LOAD_IMAGE_UNCHANGED);
+	digitImgs = std::vector<cv::Mat>(SZ);
+	cv::Mat digitMasks = cv::imread(digitsMaskPath, CV_LOAD_IMAGE_UNCHANGED);
 	for (int i = 0; i < SZ; i++) {
-		digitImgs[i] = digitMasks(Rect(0, i * 80, 80, 80));
+		digitImgs[i] = digitMasks(cv::Rect(0, i * 80, 80, 80));
 	}
 
 	initiated = true;
@@ -51,14 +49,14 @@ int Detector::detectPuzzle() {
 	Timer timer = Timer("detect puzzle", timerDebug);
 	timer.timeit();
 
-	Mat gray;
+	cv::Mat gray;
     if (img.channels() == 3) {
-    	cvtColor(img, gray, COLOR_BGR2GRAY);
+    	cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
     } else {
-    	cvtColor(img, gray, COLOR_BGRA2GRAY);
+    	cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
     }
 
-	timer.timeit("cvtColor to gray");
+	timer.timeit("cv::cvtColor to gray");
 
 	if (locatePuzzle(gray, pts)) {
 		// no grid found
@@ -67,7 +65,7 @@ int Detector::detectPuzzle() {
 
 	timer.timeit("find grid");
 
-	Mat grayGrid;
+	cv::Mat grayGrid;
 	warpPerspectiveGrid(pts, gray, grayGrid);
 
 	timer.timeit("perspective transform");
@@ -78,30 +76,30 @@ int Detector::detectPuzzle() {
 	int nb_empty = 0;
 
 	std::vector<int> iCells;
-	std::vector<Mat> digits;
+	std::vector<cv::Mat> digits;
 
 	timer.timeit();
 
-	Mat grid_blur;
-	GaussianBlur(grayGrid, grid_blur, Size(7, 7), 0);
+	cv::Mat grid_blur;
+	cv::GaussianBlur(grayGrid, grid_blur, cv::Size(7, 7), 0);
 //	bilateralFilter(grayGrid, grid_blur, 15, 60, 60);   // TOO SLOW!!!  60+ ms per img
 
-	Mat grid_thresh;
+	cv::Mat grid_thresh;
 	// TODO try ADAPTIVE_THRESH_MEAN_C (little performance gain)
-	adaptiveThreshold(grid_blur, grid_thresh, 255, ADAPTIVE_THRESH_GAUSSIAN_C,
-			THRESH_BINARY, 15, 2);
+	cv::adaptiveThreshold(grid_blur, grid_thresh, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+			cv::THRESH_BINARY, 15, 2);
 
 	// Use morphology to remove noise
-	Mat kernal = getStructuringElement(MORPH_ELLIPSE, Size(2, 2));
-	morphologyEx(grid_thresh, grid_thresh, MORPH_OPEN, kernal);
+	cv::Mat kernal = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2, 2));
+	morphologyEx(grid_thresh, grid_thresh, cv::MORPH_OPEN, kernal);
 
 	timer.timeit("grid thres");
 
 	for (int n = 0; n < SZ * SZ; n++) {
 
-		Mat cell = grid_thresh(Rect(n % SZ * cellw, n / SZ * cellh, cellw, cellh));
+		cv::Mat cell = grid_thresh(cv::Rect(n % SZ * cellw, n / SZ * cellh, cellw, cellh));
 
-		Mat digit;
+		cv::Mat digit;
 		if (locateDigit(cell, digit)) {
 			nb_empty++;
 			continue;
@@ -112,10 +110,10 @@ int Detector::detectPuzzle() {
 
 	timer.timeit("locate digit");
 
-	std::vector<Mat> filledDigits;
+	std::vector<cv::Mat> filledDigits;
 	for (unsigned int n = 0; n < iCells.size(); n++) {
 
-		Mat filledDigit = addBorder(digits[n], 28, 28, 28);
+		cv::Mat filledDigit = addBorder(digits[n], 28, 28, 28);
 		filledDigits.push_back(filledDigit);
 	}
 
@@ -127,7 +125,7 @@ int Detector::detectPuzzle() {
 		std::vector<float> hogData(NB_AREA * NB_BIN);
 		hog(filledDigits[n], hogData);
 
-		Mat testData = Mat(1, NB_AREA * NB_BIN, CV_32F, hogData.data());
+		cv::Mat testData = cv::Mat(1, NB_AREA * NB_BIN, CV_32F, hogData.data());
 
 		float re = svm->predict(testData);
 		results.push_back((int) re);
@@ -146,51 +144,51 @@ int Detector::detectPuzzle() {
 
 }
 
-int Detector::locatePuzzle(Mat &gray, std::vector<Point> &pts) {
+int Detector::locatePuzzle(cv::Mat &gray, std::vector<cv::Point> &pts) {
 	Timer timer = Timer("locate grid", timerDebug);
 	// blur to eliminate noise
-	Mat blur;
-	GaussianBlur(gray, blur, Size(PARAM_GRID_BLUR, PARAM_GRID_BLUR), 0);
+	cv::Mat blur;
+	cv::GaussianBlur(gray, blur, cv::Size(PARAM_GRID_BLUR, PARAM_GRID_BLUR), 0);
 //	bilateralFilter(gray, blur, 15, 60, 60);   // TOO SLOW!!!  60+ ms per img
 
 	timer.timeit("blur");
 
-	Mat thresh;
+	cv::Mat thresh;
 	// TODO use ADAPTIVE_THRESH_MEAN_C to increase speed
-	adaptiveThreshold(gray, thresh, 255, ADAPTIVE_THRESH_GAUSSIAN_C,
-			THRESH_BINARY_INV, PARAM_GRID_THRES_BLOCKSIZE, PARAM_GRID_THRES_C);
+	cv::adaptiveThreshold(gray, thresh, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+			cv::THRESH_BINARY_INV, PARAM_GRID_THRES_BLOCKSIZE, PARAM_GRID_THRES_C);
 
 	timer.timeit("threshold");
 
 	// Use morphology to remove noise
-	Mat kernel = getStructuringElement(PARAM_GRID_OPEN_KERNEL,
-			Size(PARAM_GRID_OPEN_KERNEL_SIZE, PARAM_GRID_OPEN_KERNEL_SIZE));
-	morphologyEx(thresh, thresh, MORPH_OPEN, kernel);
+	cv::Mat kernel = cv::getStructuringElement(cv::PARAM_GRID_OPEN_KERNEL,
+			cv::Size(PARAM_GRID_OPEN_KERNEL_SIZE, PARAM_GRID_OPEN_KERNEL_SIZE));
+	cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
 
 	// Fill possible holes in lines
-	Mat kernel2 = getStructuringElement(PARAM_GRID_CLOSE_KERNEL,
-			Size(PARAM_GRID_CLOSE_KERNEL_SIZE, PARAM_GRID_CLOSE_KERNEL_SIZE));
-	morphologyEx(thresh, thresh, MORPH_CLOSE, kernel2);
+	cv::Mat kernel2 = cv::getStructuringElement(cv::PARAM_GRID_CLOSE_KERNEL,
+			cv::Size(PARAM_GRID_CLOSE_KERNEL_SIZE, PARAM_GRID_CLOSE_KERNEL_SIZE));
+	cv::morphologyEx(thresh, thresh, cv::MORPH_CLOSE, kernel2);
 
 	timer.timeit("morphology");
 
 
 	// TODO use RETR_EXTERNAL to better accuracy and accelerate (5800->5500), but loses one grid (cascade grids?)
 	// TODO use hierarchy to filer, accelerate.
-	std::vector<std::vector<Point>> contours;
-	std::vector<Vec4i> hierarchy;
-	findContours(thresh, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+	std::vector<std::vector<cv::Point>> contours;
+	std::vector<cv::Vec4i> hierarchy;
+	cv::findContours(thresh, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
 	timer.timeit("find coutours");
 
-	std::map<double, std::vector<Point>> grids;
+	std::map<double, std::vector<cv::Point>> grids;
 
 	for (size_t i = 0; i < contours.size(); i++) {
 
 		double area = contourArea(contours[i]);
 		if (area > gray.total() * PARAM_GRID_SIZE_THRES) {
 			double peri = arcLength(contours[i], true);
-			std::vector<Point> approx;
+			std::vector<cv::Point> approx;
 			approxPolyDP(contours[i], approx, peri * 0.04, true);
 			if (approx.size() == 4) {
 				grids[area] = approx;
@@ -202,18 +200,18 @@ int Detector::locatePuzzle(Mat &gray, std::vector<Point> &pts) {
 		return DETECTOR_NO_GRID_FOUND;
 	// iterate from the largest grid to the smallest
 	for (auto gridIt = grids.rbegin(); gridIt != grids.rend(); ++gridIt) {
-		std::vector<Point>grid = gridIt->second;
+		std::vector<cv::Point>grid = gridIt->second;
 		// sort four vertexes to order (left-top, right-top, right-bottom, left-bottom)
-		sort(grid.begin(), grid.end(), [ ]( const Point& p1, const Point& p2 ) {
+		sort(grid.begin(), grid.end(), [ ]( const cv::Point& p1, const cv::Point& p2 ) {
 			return p1.x + p1.y < p2.x + p2.y;
 		});
 
 		// right-bottom should be 3rd instead of 4th
-		Point p3 = grid[2];
+		cv::Point p3 = grid[2];
 		grid[2] = grid[3];
 		grid[3] = p3;
 		if (grid[1].x < grid[3].x) {
-			Point p1 = grid[1];
+			cv::Point p1 = grid[1];
 			grid[1] = grid[3];
 			grid[3] = p1;
 		}
@@ -250,12 +248,12 @@ int Detector::locatePuzzle(Mat &gray, std::vector<Point> &pts) {
 }
 
 /**  returns 0 if digit located, 1 if no digit, 2 if failed to locate **/
-int Detector::locateDigit(Mat cell_thresh, Mat &digit) {
+int Detector::locateDigit(cv::Mat cell_thresh, cv::Mat &digit) {
 	int h = cell_thresh.rows;
 	int w = cell_thresh.cols;
 
 	// count the active pixels in the center to see if it contains a digit
-	Mat thresh_center = cell_thresh(Rect(0.25 * w, 0.25 * h, 0.5 * w, 0.5 * h));
+	cv::Mat thresh_center = cell_thresh(cv::Rect(0.25 * w, 0.25 * h, 0.5 * w, 0.5 * h));
 
 	int nbActivePixels = countNonZero(thresh_center);
 
@@ -263,15 +261,15 @@ int Detector::locateDigit(Mat cell_thresh, Mat &digit) {
 		return DETECTOR_NO_DIGIT_IN_CELL;
 	}
 
-	std::vector<std::vector<Point>> contours;
-	findContours(cell_thresh, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
+	std::vector<std::vector<cv::Point>> contours;
+	cv::findContours(cell_thresh, contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
 
 	double maxRadius = 0;
-	std::vector<Point> digitContour;
+	std::vector<cv::Point> digitContour;
 
-	for (std::vector<Point> contour : contours) {
+	for (std::vector<cv::Point> contour : contours) {
 
-		Point2f center;
+		cv::Point2f center;
 
 		float radius;
 		minEnclosingCircle(contour, center, radius);
@@ -289,13 +287,13 @@ int Detector::locateDigit(Mat cell_thresh, Mat &digit) {
 		return DETECTOR_FAILED_TO_LOCATE_DIGIT;
 	}
 
-	Rect rect = boundingRect(digitContour);
+	cv::Rect rect = cv::boundingRect(digitContour);
 	// mask to eliminate noise in digit's rect  overhead: 6.7->7.0
-	Mat mask = Mat(cell_thresh.size(), CV_8UC1, Scalar(255));
-	std::vector<std::vector<Point>> digitContours;
+	cv::Mat mask = cv::Mat(cell_thresh.size(), CV_8UC1, cv::Scalar(255));
+	std::vector<std::vector<cv::Point>> digitContours;
 	digitContours.push_back(digitContour);
 
-	drawContours(mask, digitContours, 0, 0, FILLED);
+	cv::drawContours(mask, digitContours, 0, 0, cv::FILLED);
 
 	bitwise_or(cell_thresh, mask, cell_thresh);
 
@@ -304,20 +302,20 @@ int Detector::locateDigit(Mat cell_thresh, Mat &digit) {
 	return 0;
 }
 
-void Detector::warpPerspectiveGrid(std::vector<Point> pts, Mat img, Mat &grid) {
+void Detector::warpPerspectiveGrid(std::vector<cv::Point> pts, cv::Mat img, cv::Mat &grid) {
 
 	int gridRows = (int) (pts[2].y + pts[3].y - pts[0].y - pts[1].y) / 2;
 	int gridCols = (int) (pts[1].x + pts[2].x - pts[0].x - pts[3].x) / 2;
 
-	std::vector<Point2f> p = { (Point2f) pts[0], (Point2f) pts[1], (Point2f) pts[2],
-			(Point2f) pts[3] };
+	std::vector<cv::Point2f> p = { (cv::Point2f) pts[0], (cv::Point2f) pts[1], (cv::Point2f) pts[2],
+			(cv::Point2f) pts[3] };
 
-	std::vector<Point2f> h = { Point2f(0, 0), Point2f(gridCols - 1, 0), Point2f(
-			gridCols - 1, gridRows - 1), Point2f(0, gridRows - 1) };
+	std::vector<cv::Point2f> h = { cv::Point2f(0, 0), cv::Point2f(gridCols - 1, 0), cv::Point2f(
+			gridCols - 1, gridRows - 1), cv::Point2f(0, gridRows - 1) };
 
-	Mat m = getPerspectiveTransform(p, h);
+	cv::Mat m = getPerspectiveTransform(p, h);
 
-	warpPerspective(img, grid, m, Size(gridCols, gridRows));
+	cv::warpPerspective(img, grid, m, cv::Size(gridCols, gridRows));
 
 }
 
@@ -328,23 +326,23 @@ Draw the extracted grid back to the image with reverse perspective
 @param img the original image to draw onto
 @param grid the grid image to be drawed
  */
-void Detector::drawReversePerspectiveGrid(std::vector<Point> pts, Mat &img,
-		Mat grid) {
+void Detector::drawReversePerspectiveGrid(std::vector<cv::Point> pts, cv::Mat &img,
+		cv::Mat grid) {
 	int gridRows = grid.rows;
 	int gridCols = grid.cols;
-	std::vector<Point2f> p = { (Point2f) pts[0], (Point2f) pts[1], (Point2f) pts[2],
-			(Point2f) pts[3] };
+	std::vector<cv::Point2f> p = { (cv::Point2f) pts[0], (cv::Point2f) pts[1], (cv::Point2f) pts[2],
+			(cv::Point2f) pts[3] };
 
-	std::vector<Point2f> h = { Point2f(0, 0), Point2f(gridCols - 1, 0), Point2f(
-			gridCols - 1, gridRows - 1), Point2f(0, gridRows - 1) };
+	std::vector<cv::Point2f> h = { cv::Point2f(0, 0), cv::Point2f(gridCols - 1, 0), cv::Point2f(
+			gridCols - 1, gridRows - 1), cv::Point2f(0, gridRows - 1) };
 
-	Mat m = getPerspectiveTransform(p, h);
+	cv::Mat m = getPerspectiveTransform(p, h);
 
-	warpPerspective(grid, img, m, img.size(), WARP_INVERSE_MAP,
-			BORDER_TRANSPARENT, Scalar(0.0));
+	cv::warpPerspective(grid, img, m, img.size(), cv::WARP_INVERSE_MAP,
+			cv::BORDER_TRANSPARENT, cv::Scalar(0.0));
 }
 
-Mat Detector::addBorder(Mat &digit, int sampleHeight,
+cv::Mat Detector::addBorder(cv::Mat &digit, int sampleHeight,
 		int sampleWidth, int sampleDigitHeight) {
 
 	if (sampleDigitHeight > sampleHeight) {
@@ -361,31 +359,31 @@ Mat Detector::addBorder(Mat &digit, int sampleHeight,
 		sampleDigitHeight = h * sampleDigitWidth / w;
 	}
 
-	Mat newDigit;
-	resize(digit, newDigit, Size(sampleDigitWidth, sampleDigitHeight), 0, 0,
-			INTER_AREA);
+	cv::Mat newDigit;
+	cv::resize(digit, newDigit, cv::Size(sampleDigitWidth, sampleDigitHeight), 0, 0,
+			cv::INTER_AREA);
 
-	Mat filledDigit(Size(sampleHeight, sampleWidth), CV_8UC1, Scalar(255));
+	cv::Mat filledDigit(cv::Size(sampleHeight, sampleWidth), CV_8UC1, cv::Scalar(255));
 
 	int x = (sampleWidth - sampleDigitWidth) / 2;
 	int y = (sampleHeight - sampleDigitHeight) / 2;
 
-	newDigit.copyTo(filledDigit(Rect(x, y, newDigit.cols, newDigit.rows)));
+	newDigit.copyTo(filledDigit(cv::Rect(x, y, newDigit.cols, newDigit.rows)));
 	return filledDigit;
 }
 
-void Detector::hog(Mat &img, std::vector<float> &hists) {
-	Mat gx;
-	Mat gy;
+void Detector::hog(cv::Mat &img, std::vector<float> &hists) {
+	cv::Mat gx;
+	cv::Mat gy;
 	Sobel(img, gx, CV_32F, 1, 0);
 	Sobel(img, gy, CV_32F, 0, 1);
 
-	Mat mag;
-	Mat ang;
+	cv::Mat mag;
+	cv::Mat ang;
 	cartToPolar(gx, gy, mag, ang);
 
 	ang = ang * (NB_BIN - 1) / (2 * 3.1415926535897932384626433832795);
-	Mat bins;
+	cv::Mat bins;
 	ang.convertTo(bins, CV_8U);
 
 	int lines[] = { 0, 5, 11, 16, 22, 28 };
@@ -395,13 +393,13 @@ void Detector::hog(Mat &img, std::vector<float> &hists) {
 
 		for (int r = 0; r < nb_col; r++) {
 			// System.out.println(r + ", " + c);
-			Mat subBins = bins(
-					Rect(lines[c], lines[r], lines[c + 1] - lines[c],
+			cv::Mat subBins = bins(
+					cv::Rect(lines[c], lines[r], lines[c + 1] - lines[c],
 							lines[r + 1] - lines[r]));
 			unsigned char* areaBins = (unsigned char*) subBins.data; // size: subBins.total()
 
-			Mat subMag = mag(
-					Rect(lines[c], lines[r], lines[c + 1] - lines[c],
+			cv::Mat subMag = mag(
+					cv::Rect(lines[c], lines[r], lines[c + 1] - lines[c],
 							lines[r + 1] - lines[r]));
 			float* areaMag = (float*) subMag.data; // size: subMag.total()
 
@@ -413,23 +411,23 @@ void Detector::hog(Mat &img, std::vector<float> &hists) {
 	}
 }
 
-void Detector::deskew(Mat &img, Mat &deskew) {
-	 Moments moms = moments(img);
+void Detector::deskew(cv::Mat &img, cv::Mat &deskew) {
+	cv::Moments moms = moments(img);
 	 if (moms.mu02 < 1e-2 && moms.mu02 > -1e-2){
 		 img.copyTo(deskew);
 		 return;
 	 }
-	 float skew = (float) moms.mu11 / moms.mu02;
+	 double skew = moms.mu11 / moms.mu02;
 
-	 float mf[2][3] = {{1, skew, -0.5*SZ_IMG*skew}, {0, 1, 0}};
+	 float mf[2][3] = {{1, skew, (float) (-0.5*SZ_IMG*skew)}, {0, 1, 0}};
 
-	 Mat m = Mat(2, 3, CV_32F, mf);
+	 cv::Mat m = cv::Mat(2, 3, CV_32F, mf);
 
-	 warpAffine(img, deskew, m, Size(SZ_IMG, SZ_IMG), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar(255));
+	 cv::warpAffine(img, deskew, m, cv::Size(SZ_IMG, SZ_IMG), cv::WARP_INVERSE_MAP | cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(255));
 
 }
 
-Mat Detector::drawDigits(std::vector<int> resolvedDigits) {
+cv::Mat Detector::drawDigits(std::vector<int> resolvedDigits) {
 	if (resolvedDigits.size() != SZ * SZ || extractedDigits.size() != SZ * SZ) {
 		return img;
 	}
@@ -438,10 +436,10 @@ Mat Detector::drawDigits(std::vector<int> resolvedDigits) {
 
 	int imgChn = img.channels();
 	if (imgChn == 4) {
-		cvtColor(img, img, COLOR_BGRA2BGR);
+		cv::cvtColor(img, img, cv::COLOR_BGRA2BGR);
 	}
 
-	Mat grid;
+	cv::Mat grid;
 	warpPerspectiveGrid(pts, img, grid);
 	timer.timeit("perspective");
 
@@ -452,41 +450,41 @@ Mat Detector::drawDigits(std::vector<int> resolvedDigits) {
 		int cellh = grid.rows / SZ;
 		int cellw = grid.cols / SZ;
 
-		Mat cell = grid(
-				Rect((i % SZ) * grid.cols / SZ, (i / SZ) * grid.rows / SZ,
+		cv::Mat cell = grid(
+				cv::Rect((i % SZ) * grid.cols / SZ, (i / SZ) * grid.rows / SZ,
 						cellw, cellh));
 
 		// extracted digits
 		if (extractedDigits[i] != 0){
-			Mat mask;
-			resize(digitImgs[extractedDigits[i] - 1], mask, cell.size());
+			cv::Mat mask;
+			cv::resize(digitImgs[extractedDigits[i] - 1], mask, cell.size());
 
-			multiply(mask, cell, mask);
+			cv::multiply(mask, cell, mask);
 
-			addWeighted(mask, 0.2, cell, 0.8, 0.0, cell);
+			cv::addWeighted(mask, 0.2, cell, 0.8, 0.0, cell);
 			continue;
 		}
 
 		// resolved digits
 		if (extractedDigits[i] == 0 && resolvedDigits[i] != 0){
-			Mat mask;
-			resize(digitImgs[resolvedDigits[i] - 1], mask, cell.size());
+			cv::Mat mask;
+			cv::resize(digitImgs[resolvedDigits[i] - 1], mask, cell.size());
 
-			multiply(mask, cell, mask);
+			cv::multiply(mask, cell, mask);
 
-			addWeighted(mask, 0.6, cell, 0.4, 0.0, cell);
+			cv::addWeighted(mask, 0.6, cell, 0.4, 0.0, cell);
 		}
 
 	}
 
 	timer.timeit("drawn cells");
-	// do reverse perspective transformation and draw the grid with digits onto original image
+	// do reverse perspective transforcv::Mation and draw the grid with digits onto original image
 	drawReversePerspectiveGrid(pts, img, grid);
 
 	timer.timeit("reverse perspective");
 	if (imgChn == 4) {
-		cvtColor(img, img, COLOR_BGR2BGRA);
+		cv::cvtColor(img, img, cv::COLOR_BGR2BGRA);
 	}
-//	imwrite("source/drawn.jpg", input);
+//	cv::imwrite("source/drawn.jpg", input);
 	return img;
 }

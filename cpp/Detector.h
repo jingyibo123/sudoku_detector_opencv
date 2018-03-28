@@ -18,10 +18,7 @@
 #include <iostream>
 #include <string>
 
-using namespace cv;
 
-using namespace ml;
-using namespace dnn;
 
 #define RSC_PATH "../../../Workspace/resource/"
 #define SVM_NAME "cppsvm.yml.gz"
@@ -65,35 +62,35 @@ using namespace dnn;
 
 class Detector {
 public:
-	Detector(Mat img);
+	Detector(cv::Mat img);
 	~Detector();
 	static bool initiated;
 	static void init(const char* svmPath, const char* digitsMaskPath);
 
 
-	std::vector<Point> pts;
+	std::vector<cv::Point> pts;
 	std::vector<int> extractedDigits;
 
 	int detectPuzzle();
 
-	Mat drawDigits(std::vector<int> resolvedDigits);
+	cv::Mat drawDigits(std::vector<int> resolvedDigits);
 
-	static void deskew(Mat &img, Mat &deskew);
-	static void hog(Mat &img, std::vector<float> &hists);
+	static void deskew(cv::Mat &img, cv::Mat &deskew);
+	static void hog(cv::Mat &img, std::vector<float> &hists);
 
 private:
-	Mat img;
+	cv::Mat img;
 	bool timerDebug;
 
-    static std::vector<Mat> digitImgs;
-	static Ptr<SVM> svm;
+    static std::vector<cv::Mat> digitImgs;
+	static cv::Ptr<cv::ml::SVM> svm;
 
-	int locatePuzzle(Mat &gray, std::vector<Point> &pts);
-	int locateDigit(Mat cell_thresh, Mat &digit);
+	int locatePuzzle(cv::Mat &gray, std::vector<cv::Point> &pts);
+	int locateDigit(cv::Mat cell_thresh, cv::Mat &digit);
 
-	static Mat addBorder(Mat &digit, int sampleHeight, int sampleWidth, int sampleDigitHeight);
-	static void warpPerspectiveGrid(std::vector<Point> pts, Mat img, Mat &grid);
-	static void drawReversePerspectiveGrid(std::vector<Point> pts, Mat &img, Mat grid);
+	static cv::Mat addBorder(cv::Mat &digit, int sampleHeight, int sampleWidth, int sampleDigitHeight);
+	static void warpPerspectiveGrid(std::vector<cv::Point> pts, cv::Mat img, cv::Mat &grid);
+	static void drawReversePerspectiveGrid(std::vector<cv::Point> pts, cv::Mat &img, cv::Mat grid);
 
 };
 #endif /* SRC_DETECTOR_H_ */
